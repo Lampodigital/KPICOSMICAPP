@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+model User {
+  id            String      @id @default(cuid())
+  email         String      @unique
+  passwordHash  String
+  role          Role        @default(MEMBER)
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  lastLoginAt   DateTime?
+  auditLogs     AuditLog[]
+}
+
+model AppConfig {
+  id            Int      @id @default(1)
+  dataFileName  String?  // Name of the uploaded .xlsx file (MVP)
+  dataFileKey   String?  // Storage key / path
+  defaultOutlierPreset String @default("Normal")
+  defaultMinImpressions Int  @default(1000)
+  defaultMinSpend Float       @default(10.0)
+  updatedAt     DateTime @updatedAt
+}
+
+model ColumnMapping {
+  id             String   @id @default(cuid())
+  canonicalField String   @unique // e.g. "spend", "impressions"
+  sheetHeader    String   // e.g. "Cost Cosmic"
+  updatedAt      DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actor      User     @relation(fields: [actorId], references: [id])
+  action     String   // e.g. "ANALYZE", "EXPORT_CSV", "UPLOAD_DATA", "CREATE_USER"
+  metadata   Json     // filters used, row counts, etc. — never raw rows
+  createdAt  DateTime @default(now())
+}
