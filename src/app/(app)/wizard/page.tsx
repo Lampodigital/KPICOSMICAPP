@@ -112,6 +112,7 @@ export default function WizardPage() {
     const [periodFrom, setPeriodFrom] = useState('');
     const [periodTo, setPeriodTo] = useState('');
     const [marginPct, setMarginPct] = useState(0);
+    const [budget, setBudget] = useState<number | ''>('');
     const [preset, setPreset] = useState<'Conservative' | 'Balanced' | 'Strict'>('Balanced');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -156,31 +157,59 @@ export default function WizardPage() {
 
     const copyToClipboard = useCallback(async () => {
         if (!result) return;
-        const lines = ['KPI\tRaw\tAdjusted'];
+        const lines = ['KPI\tRaw\tAdjusted\tMin. Result Cosmic'];
         for (const [key, val] of Object.entries(result.kpis)) {
             const meta = KPI_META[key as string];
-            if (!val || (val as KpiValue).raw === null) continue;
+            const kv = val as KpiValue;
+            if (!kv || kv.raw === null) continue;
+
+            let forecast = '—';
+            if (typeof budget === 'number' && budget > 0 && kv.adjusted && !meta?.pct) {
+                let volume = 0;
+                if (key === 'CPM') {
+                    volume = (budget / kv.adjusted) * 1000;
+                } else {
+                    volume = budget / kv.adjusted;
+                }
+                forecast = new Intl.NumberFormat('it-IT', { maximumFractionDigits: 0 }).format(volume);
+            }
+
             lines.push([
                 meta?.label ?? key,
-                fmt((val as KpiValue).raw, meta?.unit, meta?.pct, meta?.decimals),
-                fmt((val as KpiValue).adjusted, meta?.unit, meta?.pct, meta?.decimals),
+                fmt(kv.raw, meta?.unit, meta?.pct, meta?.decimals),
+                fmt(kv.adjusted, meta?.unit, meta?.pct, meta?.decimals),
+                forecast
             ].join('\t'));
         }
         await navigator.clipboard.writeText(lines.join('\n'));
         setCopied(true);
         setTimeout(() => setCopied(false), 2500);
-    }, [result]);
+    }, [result, budget]);
 
     const downloadCSV = useCallback(() => {
         if (!result) return;
-        const lines = ['KPI,Raw,Adjusted'];
+        const lines = ['KPI,Raw,Adjusted,Min. Result Cosmic'];
         for (const [key, val] of Object.entries(result.kpis)) {
             const meta = KPI_META[key as string];
-            if (!val || (val as KpiValue).raw === null) continue;
+            const kv = val as KpiValue;
+            if (!kv || kv.raw === null) continue;
+
+            let forecast = '—';
+            if (typeof budget === 'number' && budget > 0 && kv.adjusted && !meta?.pct) {
+                let volume = 0;
+                if (key === 'CPM') {
+                    volume = (budget / kv.adjusted) * 1000;
+                } else {
+                    volume = budget / kv.adjusted;
+                }
+                forecast = new Intl.NumberFormat('it-IT', { maximumFractionDigits: 0 }).format(volume);
+            }
+
             lines.push([
                 meta?.label ?? key,
-                fmt((val as KpiValue).raw, meta?.unit, meta?.pct, meta?.decimals),
-                fmt((val as KpiValue).adjusted, meta?.unit, meta?.pct, meta?.decimals),
+                `"${fmt(kv.raw, meta?.unit, meta?.pct, meta?.decimals)}"`,
+                `"${fmt(kv.adjusted, meta?.unit, meta?.pct, meta?.decimals)}"`,
+                `"${forecast}"`
             ].join(','));
         }
         const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
@@ -188,7 +217,7 @@ export default function WizardPage() {
         const a = document.createElement('a');
         a.href = url; a.download = `kpi-benchmark-${new Date().toISOString().slice(0, 10)}.csv`;
         a.click(); URL.revokeObjectURL(url);
-    }, [result]);
+    }, [result, budget]);
 
     const reset = () => { setStep(0); setResult(null); setError(''); setSelectedKpiForExclusions(null); };
 
@@ -274,20 +303,48 @@ export default function WizardPage() {
 
                     {/* Secondary Cards Column */}
                     <div style={{ gridColumn: 'span 4', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                        {/* Timeframe Card */}
-                        <div className="card" style={{ background: 'var(--bg-glass)', backdropFilter: 'blur(12px)' }}>
-                            <h2 style={{ fontSize: '18px', fontWeight: 900, marginBottom: '24px' }}>Timeframe</h2>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                <div className="form-group">
-                                    <label className="label">Period from</label>
-                                    <input className="input" type="month" value={periodFrom} onChange={e => setPeriodFrom(e.target.value)} />
+                        {/* Advanced Settings */}
+                        <details className="card" style={{ background: 'var(--bg-glass)', backdropFilter: 'blur(12px)', cursor: 'pointer', padding: '16px 24px' }}>
+                            <summary style={{ fontSize: '16px', fontWeight: 700, outline: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                Advanced Settings
+                                <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 400 }}>Timeframe & Exclusions</span>
+                            </summary>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '24px', cursor: 'default' }}>
+
+                                {/* Timeframe */}
+                                <div>
+                                    <h3 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '16px', color: 'var(--text-secondary)' }}>Timeframe</h3>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                        <div className="form-group">
+                                            <label className="label">Period from</label>
+                                            <input className="input" type="month" value={periodFrom} onChange={e => setPeriodFrom(e.target.value)} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label className="label">Period to</label>
+                                            <input className="input" type="month" value={periodTo} onChange={e => setPeriodTo(e.target.value)} />
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="form-group">
-                                    <label className="label">Period to</label>
-                                    <input className="input" type="month" value={periodTo} onChange={e => setPeriodTo(e.target.value)} />
+
+                                <div style={{ height: '1px', background: 'var(--border)' }} />
+
+                                {/* Data Quality */}
+                                <div>
+                                    <h3 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '16px', color: 'var(--text-secondary)' }}>Data Quality & Guardrails</h3>
+                                    <div className="form-group">
+                                        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                                            Adjusts baseline thresholds (min spend, min rows) and IQR aggressiveness.
+                                        </p>
+                                        <div className="chip-group mt-1">
+                                            {PRESETS.map(p => (
+                                                <button key={p} type="button" className={`chip ${preset === p ? 'active' : ''}`} onClick={() => setPreset(p)}>{p}</button>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
+
                             </div>
-                        </div>
+                        </details>
 
                         {/* Adjustments Card */}
                         <div className="card" style={{ background: 'var(--bg-glass)', backdropFilter: 'blur(12px)' }}>
@@ -316,191 +373,214 @@ export default function WizardPage() {
                                         </div>
                                     </div>
                                 </div>
+
+                                <div className="form-group">
+                                    <label className="label">Forecast Budget (€) <span style={{ color: 'var(--text-muted)', fontSize: '12px', fontWeight: 400 }}>(Optional)</span></label>
+                                    <input
+                                        className="input"
+                                        type="number"
+                                        placeholder="e.g. 5000"
+                                        value={budget === '' ? '' : budget}
+                                        onChange={e => setBudget(e.target.value === '' ? '' : Number(e.target.value))}
+                                        min="0"
+                                        style={{ fontSize: '15px' }}
+                                    />
+                                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                                        Used to calculate minimum expected results based on Adjusted KPIs.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
-
-                    {/* Advanced Rules Row */}
-                    <div className="card" style={{ gridColumn: 'span 12' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '32px' }}>
-                            <div className="form-group" style={{ gridColumn: 'span 3' }}>
-                                <label className="label">Data Quality & Exclusions (Guardrails)</label>
-                                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                                    Adjusts baseline thresholds (min spend, min rows) and IQR aggressiveness. Default is Balanced.
-                                </p>
-                                <div className="chip-group mt-1">
-                                    {PRESETS.map(p => (
-                                        <button key={p} type="button" className={`chip ${preset === p ? 'active' : ''}`} onClick={() => setPreset(p)}>{p}</button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Results Area */}
-                    {result && (
-                        <div className="card" style={{ gridColumn: 'span 12', borderColor: 'var(--accent)', boxShadow: '0 0 60px var(--accent-dim)', background: 'var(--bg-glass)', backdropFilter: 'blur(16px)', position: 'relative', overflow: 'hidden' }}>
-                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '4px', background: 'var(--accent)' }} />
-
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
-                                <div>
-                                    <h2 style={{ fontSize: '22px', fontWeight: 900, color: 'var(--text-primary)' }}>Benchmark Results</h2>
-                                    <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>
-                                        Analyzed <strong style={{ color: 'var(--text-primary)' }}>{result.filteredRows}</strong> relevant campaigns out of {result.totalRows} total data points.
-                                    </p>
-                                    <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '6px' }}>
-                                        Filtering preset: <strong>{preset}</strong>
-                                    </p>
-                                </div>
-                                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                                    <details style={{ marginRight: '16px', fontSize: '13px', color: 'var(--text-muted)' }}>
-                                        <summary style={{ cursor: 'pointer', fontWeight: 600 }}>How is this calculated?</summary>
-                                        <ul style={{ paddingLeft: '20px', marginTop: '8px', lineHeight: '1.5' }}>
-                                            <li>Global minimum thresholds applied.</li>
-                                            <li>KPI-specific denominator drops low-signal rows.</li>
-                                            <li>IQR exclusion removes statistical anomalies.</li>
-                                        </ul>
-                                    </details>
-                                    <button className="btn btn-ghost" onClick={downloadCSV}>⬇ Export CSV</button>
-                                    <button className="btn btn-primary" onClick={copyToClipboard}>
-                                        {copied ? '✓ Copied!' : '📋 Copy to Clipboard'}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div style={{ overflowX: 'auto' }}>
-                                <table className="kpi-table" style={{ width: '100%' }}>
-                                    <thead>
-                                        <tr>
-                                            <th>Key Performance Indicator</th>
-                                            <th>Reliability</th>
-                                            <th>Raw Average</th>
-                                            <th>Cosmic Adjusted (+{marginPct}%)</th>
-                                            <th>Sample Size</th>
-                                            <th>Data Excluded</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {Object.entries(result.kpis).map(([key, val]) => {
-                                            const kv = val as KpiValue | undefined;
-                                            if (!kv || (!kv.raw && kv.reliability === 'Unavailable')) return null;
-                                            const meta = KPI_META[key];
-
-                                            const getBadgeStyle = (b: string) => {
-                                                if (b === 'High') return 'badge-success';
-                                                if (b === 'Medium') return 'badge-warning';
-                                                if (b === 'Low' || b === 'Unavailable') return 'badge-error';
-                                                return '';
-                                            };
-
-                                            // Progressive disclosure: If unavailable, obscure the numbers
-                                            const isUndef = kv.raw === null || kv.reliability === 'Unavailable';
-
-                                            return (
-                                                <tr key={key}>
-                                                    <td className="kpi-name" style={{ fontSize: '15px' }}>{meta?.label ?? key} <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: '6px' }}>{meta?.unit}</span></td>
-                                                    <td>
-                                                        <span className={`badge ${getBadgeStyle(kv.reliability)}`} style={{ padding: '4px 8px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                                            {kv.reliability}
-                                                        </span>
-                                                    </td>
-                                                    <td className="kpi-raw" style={{ fontSize: '15px', color: isUndef ? 'var(--text-muted)' : 'inherit' }}>
-                                                        {isUndef ? 'Unavailable' : fmt(kv.raw, meta?.unit, meta?.pct, meta?.decimals)}
-                                                    </td>
-                                                    <td className="kpi-adjusted" style={{ fontSize: '16px', color: isUndef ? 'var(--text-muted)' : 'inherit' }}>
-                                                        {isUndef ? 'Unavailable' : fmt(kv.adjusted, meta?.unit, meta?.pct, meta?.decimals)}
-                                                    </td>
-                                                    <td className="kpi-sample">
-                                                        {isUndef ? '—' : `${kv.sampleSize} rows`}
-                                                    </td>
-                                                    <td>
-                                                        {kv.exclusionSummary.totalExcluded > 0 ? (
-                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                                <span className="exclusion-badge">{kv.exclusionSummary.totalExcluded} dropped</span>
-                                                                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{kv.exclusionSummary.excludedSpendPct.toFixed(1)}% spend</span>
-                                                                <button
-                                                                    className="btn btn-ghost"
-                                                                    style={{ fontSize: '10px', padding: '2px 6px', marginTop: '4px' }}
-                                                                    onClick={() => setSelectedKpiForExclusions(key)}
-                                                                >
-                                                                    View Details
-                                                                </button>
-                                                            </div>
-                                                        ) : (
-                                                            <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>—</span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
                 </div>
 
-                {/* Exclusions Modal */}
-                {selectedKpiForExclusions && result?.kpis[selectedKpiForExclusions as keyof KpiOutput] && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px' }}>
-                        <div className="card" style={{ width: '100%', maxWidth: '1200px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: 'var(--bg)', boxShadow: '0 40px 100px rgba(0,0,0,0.5)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                                <div>
-                                    <h2 style={{ fontSize: '22px', fontWeight: 700 }}>{KPI_META[selectedKpiForExclusions]?.label || selectedKpiForExclusions} Exclusions (Top 50 by Spend)</h2>
-                                </div>
-                                <button className="btn btn-ghost" onClick={() => setSelectedKpiForExclusions(null)}>✕ Close</button>
+                {/* Results Area */}
+                {result && (
+                    <div className="card" style={{ gridColumn: 'span 12', borderColor: 'var(--accent)', boxShadow: '0 0 60px var(--accent-dim)', background: 'var(--bg-glass)', backdropFilter: 'blur(16px)', position: 'relative', overflow: 'hidden' }}>
+                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '4px', background: 'var(--accent)' }} />
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+                            <div>
+                                <h2 style={{ fontSize: '22px', fontWeight: 900, color: 'var(--text-primary)' }}>Benchmark Results</h2>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>
+                                    Analyzed <strong style={{ color: 'var(--text-primary)' }}>{result.filteredRows}</strong> relevant campaigns out of {result.totalRows} total data points.
+                                </p>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '6px' }}>
+                                    Filtering preset: <strong>{preset}</strong>
+                                </p>
                             </div>
-                            <div style={{ overflowY: 'auto', flex: 1, paddingBottom: '24px' }}>
-                                <table className="kpi-table" style={{ width: '100%' }}>
-                                    <thead>
-                                        <tr>
-                                            <th>Campaign</th>
-                                            <th>Market</th>
-                                            <th>Objective</th>
-                                            <th>Spend (€)</th>
-                                            <th>Impressions</th>
-                                            <th>Clicks</th>
-                                            <th>Computed Metric</th>
-                                            <th>Reasons</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {(result.kpis[selectedKpiForExclusions as keyof KpiOutput] as KpiValue).exclusionSummary.topExcluded?.map((ex, i) => (
-                                            <tr key={i}>
-                                                <td style={{ fontSize: '12px' }}>{ex.campaignName}</td>
-                                                <td style={{ fontSize: '12px' }}>{ex.market}</td>
-                                                <td style={{ fontSize: '12px' }}>{ex.objective}</td>
-                                                <td style={{ fontSize: '12px' }}>{fmt(ex.spend, '€', false)}</td>
-                                                <td style={{ fontSize: '12px' }}>{ex.impressions}</td>
-                                                <td style={{ fontSize: '12px' }}>{ex.clicks}</td>
-                                                <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{fmt(ex.computedValue, KPI_META[selectedKpiForExclusions]?.unit, KPI_META[selectedKpiForExclusions]?.pct, KPI_META[selectedKpiForExclusions]?.decimals)}</td>
+                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                <details style={{ marginRight: '16px', fontSize: '13px', color: 'var(--text-muted)' }}>
+                                    <summary style={{ cursor: 'pointer', fontWeight: 600 }}>How is this calculated?</summary>
+                                    <ul style={{ paddingLeft: '20px', marginTop: '8px', lineHeight: '1.5' }}>
+                                        <li>Global minimum thresholds applied.</li>
+                                        <li>KPI-specific denominator drops low-signal rows.</li>
+                                        <li>IQR exclusion removes statistical anomalies.</li>
+                                    </ul>
+                                </details>
+                                <button className="btn btn-ghost" onClick={downloadCSV}>⬇ Export CSV</button>
+                                <button className="btn btn-primary" onClick={copyToClipboard}>
+                                    {copied ? '✓ Copied!' : '📋 Copy to Clipboard'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style={{ overflowX: 'auto' }}>
+                            <table className="kpi-table" style={{ width: '100%' }}>
+                                <thead>
+                                    <tr>
+                                        <th>Key Performance Indicator</th>
+                                        <th>Reliability</th>
+                                        <th>Raw Average</th>
+                                        <th>Cosmic Adjusted (+{marginPct}%)</th>
+                                        <th>Min. Result Cosmic</th>
+                                        <th>Sample Size</th>
+                                        <th>Data Excluded</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {Object.entries(result.kpis).map(([key, val]) => {
+                                        const kv = val as KpiValue | undefined;
+                                        if (!kv || (!kv.raw && kv.reliability === 'Unavailable')) return null;
+                                        const meta = KPI_META[key];
+
+                                        const getBadgeStyle = (b: string) => {
+                                            if (b === 'High') return 'badge-success';
+                                            if (b === 'Medium') return 'badge-warning';
+                                            if (b === 'Low' || b === 'Unavailable') return 'badge-error';
+                                            return '';
+                                        };
+
+                                        // Progressive disclosure: If unavailable, obscure the numbers
+                                        const isUndef = kv.raw === null || kv.reliability === 'Unavailable';
+
+                                        return (
+                                            <tr key={key}>
+                                                <td className="kpi-name" style={{ fontSize: '15px' }}>{meta?.label ?? key} <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: '6px' }}>{meta?.unit}</span></td>
                                                 <td>
-                                                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                                                        {ex.reasons.map(r => {
-                                                            const info = REASON_DESCRIPTIONS[r];
-                                                            return (
-                                                                <div key={r} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                                    <span style={{ padding: '2px 6px', background: 'var(--bg-glass)', borderRadius: '4px', fontSize: '10px', color: 'var(--text-warning)', fontWeight: 600, display: 'inline-block' }}>
-                                                                        {info?.label ?? r}
-                                                                    </span>
-                                                                    {info?.description && (
-                                                                        <span style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: '1.3', maxWidth: '180px' }}>
-                                                                            {info.description}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
+                                                    <span className={`badge ${getBadgeStyle(kv.reliability)}`} style={{ padding: '4px 8px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                                        {kv.reliability}
+                                                    </span>
+                                                </td>
+                                                <td className="kpi-raw" style={{ fontSize: '15px', color: isUndef ? 'var(--text-muted)' : 'inherit' }}>
+                                                    {isUndef ? 'Unavailable' : fmt(kv.raw, meta?.unit, meta?.pct, meta?.decimals)}
+                                                </td>
+                                                <td className="kpi-adjusted" style={{ fontSize: '16px', color: isUndef ? 'var(--text-muted)' : 'inherit', fontWeight: isUndef ? 400 : 700 }}>
+                                                    {isUndef ? 'Unavailable' : fmt(kv.adjusted, meta?.unit, meta?.pct, meta?.decimals)}
+                                                </td>
+                                                <td className="kpi-forecast" style={{ fontSize: '15px', color: isUndef ? 'var(--text-muted)' : 'var(--accent)' }}>
+                                                    {(() => {
+                                                        if (isUndef || typeof budget !== 'number' || budget <= 0 || kv.adjusted === null || kv.adjusted === 0) return '—';
+
+                                                        // Determine forecast based on KPI type
+                                                        if (meta?.pct) return '—'; // CTR, ER, CVR, VTR6 are not volume metrics
+
+                                                        let volume = 0;
+                                                        if (key === 'CPM') {
+                                                            volume = (budget / kv.adjusted) * 1000;
+                                                        } else {
+                                                            // CPC, CPV, CPV6, CPSF
+                                                            volume = budget / kv.adjusted;
+                                                        }
+
+                                                        return new Intl.NumberFormat('it-IT', { maximumFractionDigits: 0 }).format(volume);
+                                                    })()}
+                                                </td>
+                                                <td className="kpi-sample">
+                                                    {isUndef ? '—' : `${kv.sampleSize} rows`}
+                                                </td>
+                                                <td>
+                                                    {kv.exclusionSummary.totalExcluded > 0 ? (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                            <span className="exclusion-badge">{kv.exclusionSummary.totalExcluded} dropped</span>
+                                                            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{kv.exclusionSummary.excludedSpendPct.toFixed(1)}% spend</span>
+                                                            <button
+                                                                className="btn btn-ghost"
+                                                                style={{ fontSize: '10px', padding: '2px 6px', marginTop: '4px' }}
+                                                                onClick={() => setSelectedKpiForExclusions(key)}
+                                                            >
+                                                                View Details
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>—</span>
+                                                    )}
                                                 </td>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 )}
+            </div>
+
+            {/* Exclusions Modal */}
+            {selectedKpiForExclusions && result?.kpis[selectedKpiForExclusions as keyof KpiOutput] && (
+                <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px' }}>
+                    <div className="card" style={{ width: '100%', maxWidth: '1200px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: 'var(--bg)', boxShadow: '0 40px 100px rgba(0,0,0,0.5)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                            <div>
+                                <h2 style={{ fontSize: '22px', fontWeight: 700 }}>{KPI_META[selectedKpiForExclusions]?.label || selectedKpiForExclusions} Exclusions (Top 50 by Spend)</h2>
+                            </div>
+                            <button className="btn btn-ghost" onClick={() => setSelectedKpiForExclusions(null)}>✕ Close</button>
+                        </div>
+                        <div style={{ overflowY: 'auto', flex: 1, paddingBottom: '24px' }}>
+                            <table className="kpi-table" style={{ width: '100%' }}>
+                                <thead>
+                                    <tr>
+                                        <th>Campaign</th>
+                                        <th>Market</th>
+                                        <th>Objective</th>
+                                        <th>Spend (€)</th>
+                                        <th>Impressions</th>
+                                        <th>Clicks</th>
+                                        <th>Computed Metric</th>
+                                        <th>Reasons</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {(result.kpis[selectedKpiForExclusions as keyof KpiOutput] as KpiValue).exclusionSummary.topExcluded?.map((ex, i) => (
+                                        <tr key={i}>
+                                            <td style={{ fontSize: '12px' }}>{ex.campaignName}</td>
+                                            <td style={{ fontSize: '12px' }}>{ex.market}</td>
+                                            <td style={{ fontSize: '12px' }}>{ex.objective}</td>
+                                            <td style={{ fontSize: '12px' }}>{fmt(ex.spend, '€', false)}</td>
+                                            <td style={{ fontSize: '12px' }}>{ex.impressions}</td>
+                                            <td style={{ fontSize: '12px' }}>{ex.clicks}</td>
+                                            <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{fmt(ex.computedValue, KPI_META[selectedKpiForExclusions]?.unit, KPI_META[selectedKpiForExclusions]?.pct, KPI_META[selectedKpiForExclusions]?.decimals)}</td>
+                                            <td>
+                                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                                    {ex.reasons.map(r => {
+                                                        const info = REASON_DESCRIPTIONS[r];
+                                                        return (
+                                                            <div key={r} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                                <span style={{ padding: '2px 6px', background: 'var(--bg-glass)', borderRadius: '4px', fontSize: '10px', color: 'var(--text-warning)', fontWeight: 600, display: 'inline-block' }}>
+                                                                    {info?.label ?? r}
+                                                                </span>
+                                                                {info?.description && (
+                                                                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: '1.3', maxWidth: '180px' }}>
+                                                                        {info.description}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Footer Credits */}
+            <div style={{ textAlign: 'center', marginTop: '64px', paddingTop: '32px', borderTop: '1px solid var(--border)', fontSize: '13px', color: 'var(--text-muted)', letterSpacing: '0.02em' }}>
+                Credits: <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Stefano Rossi</span>
             </div>
         </div>
     );
