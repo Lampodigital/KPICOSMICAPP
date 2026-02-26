@@ -1,36 +1,93 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cosmic KPI Master App
+
+![Cosmic Tech](public/brand/cosmic-logo-black.png)
+
+A sophisticated internal analytics dashboard and data normalization tool for managing, analyzing, and exporting highly refined structural KPIs for Cosmic Tech.
+
+## Features
+
+- **Data Normalization Engine:** Standardizes input data by converting headers, processing null values, and parsing currencies/ratios flawlessly.
+- **Outlier Detection:** Intelligent multi-pass Interquartile Range (IQR) analysis to clean anomalies while retaining statistical significance across variable dataset sizes.
+- **KPI Registry:** Centralized configuration block mapping visual presentations (labels, formatting, descriptions) to canonical data keys.
+- **Supabase Integration:** Full database sync, Row Level Security (RLS) integration, and seamless user authentication.
+- **Dynamic Configuration:** App-wide config accessible via internal APIs and managed through an administrative dashboard.
+- **Cosmic UI/UX Theme:** A responsive, premium dark-mode aesthetic utilizing rich globals tokens.
+
+## Tech Stack
+
+This project is built using:
+- **Framework:** [Next.js 15 (App Router)](https://nextjs.org/)
+- **Database / Auth:** [Supabase](https://supabase.com/)
+- **ORM:** [Prisma](https://www.prisma.io/)
+- **Styling:** Vanilla CSS & TailwindCSS
+- **Testing:** [Vitest](https://vitest.dev/)
+- **Languages:** TypeScript, React
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+You need `Node.js 20+` and `npm` installed on your machine.
+Ensure you have access to the associated Supabase project.
+
+### Environment Setup
+
+Create a `.env.local` file at the root of the project with the following keys:
+
+```env
+# Database Credentials
+DATABASE_URL="postgres://[db-user]:[db-password]@[db-host]:[db-port]/[db-name]"
+DIRECT_URL="postgres://[db-user]:[db-password]@[db-host]:[db-port]/[db-name]"
+
+# Supabase Auth
+NEXT_PUBLIC_SUPABASE_URL="https://[your-project-id].supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
+```
+
+### Installation
+
+1. Install project dependencies:
+   ```bash
+   npm install
+   ```
+
+2. Push the Prisma schema to sync your database:
+   ```bash
+   npm run db:push
+   ```
+
+3. (Optional) Run Prisma Studio to view database contents:
+   ```bash
+   npm run db:studio
+   ```
+
+### Development 
+
+Run the development server natively:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Testing
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+This project utilizes `vitest` to ensure robust structural validation, specifically for the Statistical logic and Data Normalization engine.
 
-## Learn More
+To run the unified test suite:
+```bash
+npm run test
+```
+*(Tests cover `normalize`, `outliers`, `registry`, and mapping `utils`)*
 
-To learn more about Next.js, take a look at the following resources:
+## Repository Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `/src/app`: Next.js App Router structured pages and API routes.
+- `/src/lib`: Core logical tools (`/data`, `/kpis`, `/outliers`, `/db`).
+- `/public`: Static assets including brand resources.
+- `/prisma`: Database schemas and seed data.
+- `/tests`: Vitest testing suites for programmatic validation. 
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+Proprietary / Internal. Not for public distribution.
