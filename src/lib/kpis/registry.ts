@@ -1,5 +1,6 @@
 import { CanonicalRow } from '@/lib/data/normalize';
-import { excludeOutliers, OutlierPreset, OutlierThresholds } from '@/lib/outliers';
+import { excludeOutliers } from '@/lib/outliers';
+import { QualityThresholds, OutlierPreset, PRESETS, ReliabilityBadge, BadgeThresholds, DEFAULT_BADGE_THRESHOLDS } from '@/lib/outliers/config';
 
 export interface KpiValue {
     raw: number | null;
@@ -9,7 +10,20 @@ export interface KpiValue {
         totalExcluded: number;
         iqrOutliers: number;
         belowThreshold: number;
+        excludedSpendPct: number;
+        topExcluded: Array<{
+            campaignName: string;
+            market: string;
+            objective: string;
+            spend: number;
+            impressions: number;
+            clicks: number;
+            videoViews6s: number;
+            computedValue: number | null;
+            reasons: string[];
+        }>;
     };
+    reliability: ReliabilityBadge;
 }
 
 export interface KpiOutput {
@@ -26,7 +40,8 @@ export interface KpiOutput {
 export interface AnalyzeOptions {
     marginPct: number; // 0–100
     preset: OutlierPreset;
-    thresholds: OutlierThresholds;
+    customThresholds?: QualityThresholds; // From admin overrides
+    customBadgeThresholds?: BadgeThresholds; // From admin overrides
 }
 
 function applyMargin(value: number, marginPct: number): number {
@@ -43,14 +58,63 @@ function avg(nums: number[]): number | null {
 function computeKpi(
     rows: CanonicalRow[],
     getMetric: (r: CanonicalRow) => number | null,
-    preset: OutlierPreset,
-    thresholds: OutlierThresholds,
+    getDenominator: (r: CanonicalRow) => number,
     marginPct: number,
-    isCostKpi: boolean
+    isCostKpi: boolean,
+    thresholds: QualityThresholds,
+    badgeThresholds: BadgeThresholds,
+    minDenominator: number = 0
 ): KpiValue {
-    const { included, summary } = excludeOutliers(rows, getMetric, preset, thresholds);
-    const values = included.map(getMetric).filter((v): v is number => v !== null);
-    const rawAvg = avg(values);
+    const { included, excluded, summary } = excludeOutliers(rows, getMetric, getDenominator, thresholds, minDenominator);
+    const values = included.map(getMetric).filter((v): v is number => v !== null && isFinite(v));
+
+    // A KPI is computable if we have at least one valid metric value after filtering.
+    // The per-row minDenominator is already enforced in excludeOutliers (Stage 1).
+    const rawAvg = values.length > 0 ? avg(values) : null;
+
+    const excludedSpendPct = summary.totalSpend > 0
+        ? (summary.excludedSpend / summary.totalSpend) * 100
+        : 0;
+
+    let reliability: ReliabilityBadge = 'Unavailable';
+    if (included.length > 0) {
+        const rowsUsed = included.length;
+        const spendUsed = included.reduce((sum, r) => sum + r.spend, 0);
+
+        if (
+            rowsUsed >= badgeThresholds.high.minRows &&
+            spendUsed >= badgeThresholds.high.minSpend &&
+            excludedSpendPct <= badgeThresholds.high.maxExcludedPct
+        ) {
+            reliability = 'High';
+        } else if (
+            rowsUsed < badgeThresholds.medium.minRows ||
+            spendUsed < badgeThresholds.medium.minSpend ||
+            excludedSpendPct > badgeThresholds.medium.maxExcludedPct
+        ) {
+            reliability = 'Low';
+        } else {
+            reliability = 'Medium';
+        }
+    }
+
+    const topExcluded = summary.totalOut > 0
+        ? [...excluded]
+            .sort((a, b) => b.row.spend - a.row.spend)
+            .slice(0, 50)
+            .map(x => ({
+                campaignName: x.row.campaignName || 'Unknown Campaign',
+                market: x.row.market || 'Unknown',
+                objective: x.row.objective || 'Unknown',
+                spend: x.row.spend,
+                impressions: x.row.impressions,
+                clicks: x.row.clicks,
+                videoViews6s: x.row.videoViews6s,
+                computedValue: getMetric(x.row),
+                reasons: x.reasons
+            }))
+        : [];
+
     return {
         raw: rawAvg,
         adjusted: rawAvg !== null && isCostKpi ? applyMargin(rawAvg, marginPct) : rawAvg,
@@ -59,67 +123,67 @@ function computeKpi(
             totalExcluded: summary.totalOut,
             iqrOutliers: summary.iqrOutliers,
             belowThreshold: summary.belowThreshold,
+            excludedSpendPct: excludedSpendPct,
+            topExcluded
         },
+        reliability
     };
 }
 
 export function computeKPIs(rows: CanonicalRow[], options: AnalyzeOptions): KpiOutput {
-    const { marginPct, preset, thresholds } = options;
-
-    const kpiRow = (fn: (r: CanonicalRow) => number | null) => fn;
+    const { marginPct, preset, customThresholds, customBadgeThresholds } = options;
+    const thresholds = customThresholds ?? PRESETS[preset] ?? PRESETS['Balanced'];
+    const badgeThresholds = customBadgeThresholds ?? DEFAULT_BADGE_THRESHOLDS;
+    const kpiThresh = thresholds.kpi;
 
     return {
-        // CPM = spend / impressions * 1000
         CPM: computeKpi(
             rows,
-            kpiRow((r) => r.impressions > 0 ? (r.spend / r.impressions) * 1000 : null),
-            preset, thresholds, marginPct, true
+            (r) => r.impressions > 0 ? (r.spend / r.impressions) * 1000 : null,
+            (r) => r.impressions,
+            marginPct, true, thresholds, badgeThresholds, kpiThresh.CPM.minImpressions
         ),
-        // CPC = spend / clicks
         CPC: computeKpi(
             rows,
-            kpiRow((r) => r.clicks > 0 ? r.spend / r.clicks : null),
-            preset, thresholds, marginPct, true
+            (r) => r.clicks > 0 ? r.spend / r.clicks : null,
+            (r) => r.clicks,
+            marginPct, true, thresholds, badgeThresholds, kpiThresh.CPC.minClicks
         ),
-        // CPV = spend / videoViews
         CPV: computeKpi(
             rows,
-            kpiRow((r) => r.videoViews > 0 ? r.spend / r.videoViews : null),
-            preset, thresholds, marginPct, true
+            (r) => r.videoViews > 0 ? r.spend / r.videoViews : null,
+            (r) => r.videoViews,
+            marginPct, true, thresholds, badgeThresholds, 0 // No specific default given for CPV, fallback to 0
         ),
-        // CPV6 = spend / videoViews6s
         CPV6: computeKpi(
             rows,
-            kpiRow((r) => r.videoViews6s > 0 ? r.spend / r.videoViews6s : null),
-            preset, thresholds, marginPct, true
+            (r) => r.videoViews6s > 0 ? r.spend / r.videoViews6s : null,
+            (r) => r.videoViews6s,
+            marginPct, true, thresholds, badgeThresholds, kpiThresh.CPV6.minVideoViews6s
         ),
-        // CTR = clicks / impressions (ratio — no margin adjustment)
         CTR: computeKpi(
             rows,
-            kpiRow((r) => r.impressions > 0 ? r.clicks / r.impressions : null),
-            preset, thresholds, 0, false
+            (r) => r.impressions > 0 ? r.clicks / r.impressions : null,
+            (r) => r.impressions,
+            0, false, thresholds, badgeThresholds, kpiThresh.CTR.minImpressions
         ),
-        // ER = (likes+comments+shares) / impressions (ratio — no margin)
         ER: computeKpi(
             rows,
-            kpiRow((r) => r.impressions > 0
-                ? (r.paidLikes + r.paidComments + r.paidShares) / r.impressions
-                : null),
-            preset, thresholds, 0, false
+            (r) => r.impressions > 0 ? (r.paidLikes + r.paidComments + r.paidShares) / r.impressions : null,
+            (r) => r.impressions,
+            0, false, thresholds, badgeThresholds, 0 // No default for ER
         ),
-        // VTR6 = videoViews6s / impressions (ratio — no margin)
         VTR6: computeKpi(
             rows,
-            kpiRow((r) => r.impressions > 0 && r.videoViews6s > 0
-                ? r.videoViews6s / r.impressions
-                : null),
-            preset, thresholds, 0, false
+            (r) => r.impressions > 0 && r.videoViews6s > 0 ? r.videoViews6s / r.impressions : null,
+            (r) => r.impressions,
+            0, false, thresholds, badgeThresholds, 0 // No default for VTR6
         ),
-        // CPSF = spend / formSubmissions
         CPSF: computeKpi(
             rows,
-            kpiRow((r) => r.formSubmissions > 0 ? r.spend / r.formSubmissions : null),
-            preset, thresholds, marginPct, true
+            (r) => r.formSubmissions > 0 ? r.spend / r.formSubmissions : null,
+            (r) => r.formSubmissions,
+            marginPct, true, thresholds, badgeThresholds, 0
         ),
     };
 }

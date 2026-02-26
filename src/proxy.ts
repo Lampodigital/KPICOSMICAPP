@@ -7,17 +7,17 @@ const SECRET = new TextEncoder().encode(
 
 const PUBLIC_PATHS = ['/login', '/api/auth/login'];
 
-export async function middleware(req: NextRequest) {
-    const { pathname } = req.nextUrl;
+export async function proxy(request: NextRequest) {
+    const { pathname } = request.nextUrl;
 
     // Allow public routes
     if (PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
         return NextResponse.next();
     }
 
-    const token = req.cookies.get('kpi_session')?.value;
+    const token = request.cookies.get('kpi_session')?.value;
     if (!token) {
-        return NextResponse.redirect(new URL('/login', req.url));
+        return NextResponse.redirect(new URL('/login', request.url));
     }
 
     try {
@@ -32,7 +32,7 @@ export async function middleware(req: NextRequest) {
 
         return NextResponse.next();
     } catch {
-        return NextResponse.redirect(new URL('/login', req.url));
+        return NextResponse.redirect(new URL('/login', request.url));
     }
 }
 

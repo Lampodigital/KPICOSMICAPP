@@ -23,13 +23,15 @@ model User {
 }
 
 model AppConfig {
-  id            Int      @id @default(1)
-  dataFileName  String?  // Name of the uploaded .xlsx file (MVP)
-  dataFileKey   String?  // Storage key / path
-  defaultOutlierPreset String @default("Normal")
-  defaultMinImpressions Int  @default(1000)
-  defaultMinSpend Float       @default(10.0)
-  updatedAt     DateTime @updatedAt
+  id                        Int      @id @default(1)
+  dataFileName              String?  // Name of the uploaded .xlsx file (MVP)
+  dataFileKey               String?  // Storage key / path
+  defaultOutlierPreset      String   @default("Balanced")
+  defaultMinImpressions     Int      @default(1000)
+  defaultMinSpend           Float    @default(10.0)
+  qualityPresetsOverrides   Json?    // Admin overrides for global thresholds and KPI-specific denominators
+  badgeThresholdsOverrides  Json?    // Admin overrides for Reliability Badge thresholds (rows, spend, excluded%)
+  updatedAt                 DateTime @updatedAt
 }
 
 model ColumnMapping {

@@ -5,7 +5,7 @@ import { parseExcelBuffer } from '@/lib/data/parser';
 import { applyFilters, FilterOptions } from '@/lib/filters/apply';
 import { computeKPIs } from '@/lib/kpis/registry';
 import { DEFAULT_MAPPING } from '@/lib/mapping';
-import { OutlierPreset } from '@/lib/outliers';
+import { OutlierPreset, QualityThresholds } from '@/lib/outliers/config';
 import { readFile } from 'fs/promises';
 import path from 'path';
 
@@ -54,13 +54,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'No rows match the selected filters. Try broadening your selection.' }, { status: 422 });
     }
 
-    const preset: OutlierPreset = body.outlierPreset ?? (config.defaultOutlierPreset as OutlierPreset) ?? 'Normal';
-    const thresholds = {
-        minImpressions: body.minImpressions ?? config.defaultMinImpressions,
-        minSpend: body.minSpend ?? config.defaultMinSpend,
-    };
+    const preset: OutlierPreset = body.outlierPreset ?? (config.defaultOutlierPreset as OutlierPreset) ?? 'Balanced';
+    const customThresholds = (config as any).qualityPresetsOverrides as QualityThresholds | undefined;
+    const customBadgeThresholds = (config as any).badgeThresholdsOverrides as any | undefined;
 
-    const kpis = computeKPIs(filtered, { marginPct: body.marginPct ?? 0, preset, thresholds });
+    const kpis = computeKPIs(filtered, { marginPct: body.marginPct ?? 0, preset, customThresholds, customBadgeThresholds });
 
     // Audit log — NO raw rows, only metadata
     await prisma.auditLog.create({

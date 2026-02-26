@@ -1,6 +1,7 @@
 import { ColumnMappingMap } from '@/lib/mapping';
 
 export interface CanonicalRow {
+    campaignName?: string;
     client?: string;
     market?: string;
     objective?: string;
@@ -24,8 +25,46 @@ export interface CanonicalRow {
 }
 
 function parseNum(value: unknown): number {
+    if (typeof value === 'number') return value;
     if (value === null || value === undefined || value === '') return 0;
-    const str = String(value).replace(/[€$£,\s]/g, '').replace(',', '.');
+
+    let str = String(value).trim();
+    // Remove currency symbols and non-essential characters, keep digits, dots, and commas
+    str = str.replace(/[€$£\s]/g, '');
+
+    const lastComma = str.lastIndexOf(',');
+    const lastDot = str.lastIndexOf('.');
+
+    if (lastComma > -1 && lastDot > -1) {
+        // Both exist. The one occurring last is the decimal.
+        if (lastComma > lastDot) {
+            // Comma is decimal. Remove dots (thousands).
+            str = str.replace(/\./g, '').replace(',', '.');
+        } else {
+            // Dot is decimal. Remove commas (thousands).
+            str = str.replace(/,/g, '');
+        }
+    } else if (lastComma > -1) {
+        // Only comma exists. 
+        const commaCount = (str.match(/,/g) || []).length;
+        if (commaCount > 1) {
+            // Multiple commas -> thousands. Remove them.
+            str = str.replace(/,/g, '');
+        } else {
+            // Single comma. In European Excel exports, this is almost always a decimal.
+            str = str.replace(',', '.');
+        }
+    } else if (lastDot > -1) {
+        // Only dot exists.
+        const dotCount = (str.match(/\./g) || []).length;
+        if (dotCount > 1) {
+            // Multiple dots -> thousands.
+            str = str.replace(/\./g, '');
+        } else {
+            // Single dot. standard decimal for parseFloat.
+        }
+    }
+
     const n = parseFloat(str);
     return isNaN(n) ? 0 : n;
 }
@@ -52,6 +91,7 @@ export function normalizeRow(
     if (spend === 0 && impressions === 0) return null;
 
     return {
+        campaignName: parseStr(get('campaignName')) || undefined,
         client: parseStr(get('client')) || undefined,
         market: parseStr(get('market')) || undefined,
         objective: parseStr(get('objective')) || undefined,
