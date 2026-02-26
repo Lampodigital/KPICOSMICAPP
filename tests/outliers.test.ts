@@ -31,7 +31,8 @@ const mkRow = (id: string, spend: number, impressions: number, metricValue?: num
     paidLikes: 0,
     paidComments: 0,
     paidShares: 0,
-    formSubmissions: 0
+    formSubmissions: 0,
+    reach: 0
 });
 
 const defaultThresholds = PRESETS.Balanced;
@@ -131,7 +132,9 @@ describe('excludeOutliers – Stage 2 (IQR Outliers)', () => {
             rows,
             (r) => r.spend / r.clicks,
             (r) => r.clicks,
-            defaultThresholds
+            defaultThresholds,
+            0,
+            true // isCostKpi = true so we use MAD fallback instead of jumping out immediately
         );
 
         expect(included).toHaveLength(10);

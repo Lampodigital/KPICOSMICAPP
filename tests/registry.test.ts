@@ -31,7 +31,7 @@ const mkRow = (spend: number, impressions: number, clicks = 0): CanonicalRow => 
     paidComments: 0,
     paidShares: 0,
     formSubmissions: 0
-});
+} as CanonicalRow);
 
 const defaultOptions = {
     marginPct: 0,

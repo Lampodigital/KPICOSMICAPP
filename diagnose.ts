@@ -30,8 +30,9 @@ async function diagnose() {
     console.log('File size:', buffer.length);
 
     console.log('Parsing Excel...');
-    const { rows, errors } = parseExcelBuffer(buffer, mapping);
-    console.log('Parsed rows:', rows.length);
+    const { rows, validRowCount, totalRowCount, errors } = parseExcelBuffer(buffer, mapping);
+    console.log('Total rows in sheet:', totalRowCount);
+    console.log('Valid rows (matched mapping):', validRowCount);
     if (errors.length > 0) {
         console.log('Parser errors:', errors.slice(0, 5));
     }

@@ -373,6 +373,8 @@ export default function AdminPage() {
                                             numInput(p.kpi.CTR.minImpressions, v => setP(activePresetTab, t => { t.kpi.CTR.minImpressions = v; return t; }), { min: 0, step: 500 }))}
                                         {fieldRow('CPV6 – Min 6s Views', `Rows must meet this to count for CPV6. Code default: ${codeP.kpi.CPV6.minVideoViews6s}`,
                                             numInput(p.kpi.CPV6.minVideoViews6s, v => setP(activePresetTab, t => { t.kpi.CPV6.minVideoViews6s = v; return t; }), { min: 0, step: 10 }))}
+                                        {fieldRow('CVR – Min Clicks', `Conversion Rate is calculated on rows with enough clicks. Code default: ${codeP.kpi.CVR.minClicks}`,
+                                            numInput(p.kpi.CVR.minClicks, v => setP(activePresetTab, t => { t.kpi.CVR.minClicks = v; return t; }), { min: 0, step: 10 }))}
 
                                         {/* Outlier Detection */}
                                         <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', marginTop: '24px', marginBottom: '4px' }}>📐 Outlier Detection</div>

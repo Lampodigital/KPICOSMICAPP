@@ -29,19 +29,22 @@ function quartile(sorted: number[], q: number): number {
 }
 
 /**
+ * Safely adds a tiny epsilon to handle log(0) mathematically.
+ */
+function safeLog(v: number): number {
+    return Math.log(v || 1e-9);
+}
+
+/**
  * Computes IQR-based outlier fences.
  *
  * Safety rules:
  * - Returns [-Infinity, Infinity] (no exclusions) if fewer than 10 values.
- *   IQR on small datasets produces unreliable fences.
- *
- * - When IQR = 0 (most values identical), falls back to mean ± k * stdDev
- *   to catch true extreme outliers while keeping near-identical values.
- *   If stdDev is also 0 (all values truly identical), no exclusions.
- *
+ * - When IQR = 0 (most values identical), falls back to Median Absolute Deviation (MAD),
+ *   which provides a robust 50% breakdown point to prevent "masking" by extreme outliers.
  * - The lower fence is clamped to 0 for inherently non-negative metrics.
  */
-function iqrBounds(values: number[], multiplier: number): [number, number] {
+function iqrBounds(values: number[], multiplier: number, isLogSpace: boolean): [number, number] {
     if (values.length < 10) return [-Infinity, Infinity];
 
     const sorted = [...values].sort((a, b) => a - b);
@@ -49,23 +52,41 @@ function iqrBounds(values: number[], multiplier: number): [number, number] {
     const q3 = quartile(sorted, 0.75);
     const iqr = q3 - q1;
 
+    let lo: number, hi: number;
+
     if (iqr === 0) {
-        // All values are at the same quartile range — use std deviation fallback
-        const mean = values.reduce((s, v) => s + v, 0) / values.length;
-        const variance = values.reduce((s, v) => s + (v - mean) ** 2, 0) / values.length;
-        const std = Math.sqrt(variance);
+        // Robust Fallback: Median Absolute Deviation (MAD)
+        // Solves the 0% breakdown point flaw of Standard Deviation
+        const median = quartile(sorted, 0.5);
+        const absDeviations = values.map(v => Math.abs(v - median)).sort((a, b) => a - b);
+        const mad = quartile(absDeviations, 0.5);
 
-        // If std is also 0, all values are truly identical — nothing is an outlier
-        if (std === 0) return [-Infinity, Infinity];
+        let scale = mad * 1.4826;
 
-        // Use 3 SD fence (very conservative, only catches extreme deviations)
-        // Scale the multiplier slightly: a 3.0× IQR user who gets this fallback
-        // should still see moderate exclusions, so map multiplier → SD factor.
-        const sdFactor = Math.max(3, multiplier * 1.5);
-        return [mean - sdFactor * std, mean + sdFactor * std];
+        if (scale === 0) {
+            // Secondary fallback: Mean Absolute Deviation (MeanAD) from the median
+            // Needed if exactly >=50% of values are identical (making MAD=0), but outliers exist.
+            const meanAd = absDeviations.reduce((sum, v) => sum + v, 0) / absDeviations.length;
+            if (meanAd === 0) return [-Infinity, Infinity]; // All values truly identical
+            scale = meanAd * 1.2533; // Approx SD scalar for MeanAD
+        }
+
+        // We use a conservative multiplier for the fallback to only catch extreme spikes
+        const fallbackMultiplier = Math.max(3.5, multiplier * 1.5);
+
+        lo = median - fallbackMultiplier * scale;
+        hi = median + fallbackMultiplier * scale;
+    } else {
+        lo = q1 - multiplier * iqr;
+        hi = q3 + multiplier * iqr;
     }
 
-    return [q1 - multiplier * iqr, q3 + multiplier * iqr];
+    // If we computed fences in log-space, exponentiate them back to linear space
+    if (isLogSpace) {
+        return [Math.exp(lo), Math.exp(hi)];
+    }
+
+    return [lo, hi];
 }
 
 /**
@@ -91,7 +112,9 @@ export function excludeOutliers(
     getMetric: (r: CanonicalRow) => number | null,
     getDenominator: (r: CanonicalRow) => number,
     thresholds: QualityThresholds,
-    minDenominator: number = 0
+    minDenominator: number = 0,
+    isCostKpi: boolean = false,
+    requiresImpressions: boolean = true
 ): ExclusionResult {
     const included: CanonicalRow[] = [];
     const excluded: Array<{ row: CanonicalRow; reasons: string[] }> = [];
@@ -100,8 +123,7 @@ export function excludeOutliers(
     let excludedSpend = 0;
 
     // ── Stage 1: Hard minimums ────────────────────────────────────────────────
-    // These are noise/quality filters — rows that simply don't have enough
-    // budget or delivery to contribute a reliable signal.
+    // ...
     const afterThreshold: CanonicalRow[] = [];
 
     for (const row of rows) {
@@ -111,12 +133,10 @@ export function excludeOutliers(
         if (row.spend < thresholds.global.minSpend) {
             reasons.push(REASON_CODES.BELOW_MIN_SPEND);
         }
-        if (row.impressions < thresholds.global.minImpressions) {
+        if (requiresImpressions && row.impressions < thresholds.global.minImpressions) {
             reasons.push(REASON_CODES.BELOW_MIN_IMPRESSIONS);
         }
 
-        // KPI-specific denominator check — only flag if it's a distinct reason
-        // (avoid duplicating the impression check for CPM/CTR)
         if (minDenominator > 0 && getDenominator(row) < minDenominator) {
             const alreadyCoveredByImpressions = reasons.includes(REASON_CODES.BELOW_MIN_IMPRESSIONS);
             if (!alreadyCoveredByImpressions) {
@@ -133,14 +153,16 @@ export function excludeOutliers(
         }
     }
 
-    // ── Stage 2: IQR outlier detection ───────────────────────────────────────
-    // Only runs on rows that passed Stage 1.
-    // Requires at least 10 data points to produce meaningful outlier bounds.
+    // ── Stage 2: IQR / Log-IQR outlier detection ─────────────────────────────
+    // For skewed financial metrics (CPM/CPC), apply log-transformation to 
+    // compute fences gracefully around the heavy right tail.
     const metrics = afterThreshold
         .map((r) => getMetric(r))
         .filter((v): v is number => v !== null && isFinite(v) && v >= 0);
 
-    const [lo, hi] = iqrBounds(metrics, thresholds.iqrMultiplier);
+    const valuesForFence = isCostKpi ? metrics.map(safeLog) : metrics;
+    const [lo, hi] = iqrBounds(valuesForFence, thresholds.iqrMultiplier, isCostKpi);
+
     let iqrOutliers = 0;
 
     for (const row of afterThreshold) {

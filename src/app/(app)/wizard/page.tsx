@@ -10,15 +10,16 @@ const PRESETS = ['Conservative', 'Balanced', 'Strict'] as const;
 
 const STEPS = ['Filters', 'Advanced', 'Results', 'Export'];
 
-const KPI_META: Record<string, { label: string; unit: string; pct?: boolean }> = {
-    CPM: { label: 'CPM', unit: '€' },
-    CPC: { label: 'CPC', unit: '€' },
-    CPV: { label: 'CPV', unit: '€' },
-    CPV6: { label: 'CPV6', unit: '€' },
+const KPI_META: Record<string, { label: string; unit: string; pct?: boolean; decimals?: number }> = {
+    CPM: { label: 'CPM', unit: '€', decimals: 2 },
+    CPC: { label: 'CPC', unit: '€', decimals: 2 },
+    CPV: { label: 'CPV', unit: '€', decimals: 4 },
+    CPV6: { label: 'CPV6', unit: '€', decimals: 4 },
     CTR: { label: 'CTR', unit: '%', pct: true },
     ER: { label: 'ER', unit: '%', pct: true },
     VTR6: { label: 'VTR6', unit: '%', pct: true },
-    CPSF: { label: 'CPSF', unit: '€' },
+    CPSF: { label: 'CPSF', unit: '€', decimals: 2 },
+    CVR: { label: 'CVR', unit: '%', pct: true },
 };
 
 const REASON_DESCRIPTIONS: Record<string, { label: string; description: string }> = {
@@ -40,11 +41,17 @@ const REASON_DESCRIPTIONS: Record<string, { label: string; description: string }
     },
 };
 
-function fmt(v: number | null | undefined, unit?: string, pct?: boolean): string {
+function fmt(v: number | null | undefined, unit?: string, pct?: boolean, decimals?: number): string {
     if (v === null || v === undefined) return '—';
 
     if (unit === '€') {
-        return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(v);
+        const d = decimals ?? 2;
+        return new Intl.NumberFormat('it-IT', {
+            style: 'currency',
+            currency: 'EUR',
+            minimumFractionDigits: d,
+            maximumFractionDigits: d
+        }).format(v);
     }
 
     if (pct) {
@@ -155,8 +162,8 @@ export default function WizardPage() {
             if (!val || (val as KpiValue).raw === null) continue;
             lines.push([
                 meta?.label ?? key,
-                fmt((val as KpiValue).raw, meta?.unit, meta?.pct),
-                fmt((val as KpiValue).adjusted, meta?.unit, meta?.pct),
+                fmt((val as KpiValue).raw, meta?.unit, meta?.pct, meta?.decimals),
+                fmt((val as KpiValue).adjusted, meta?.unit, meta?.pct, meta?.decimals),
             ].join('\t'));
         }
         await navigator.clipboard.writeText(lines.join('\n'));
@@ -172,8 +179,8 @@ export default function WizardPage() {
             if (!val || (val as KpiValue).raw === null) continue;
             lines.push([
                 meta?.label ?? key,
-                fmt((val as KpiValue).raw, meta?.unit, meta?.pct),
-                fmt((val as KpiValue).adjusted, meta?.unit, meta?.pct),
+                fmt((val as KpiValue).raw, meta?.unit, meta?.pct, meta?.decimals),
+                fmt((val as KpiValue).adjusted, meta?.unit, meta?.pct, meta?.decimals),
             ].join(','));
         }
         const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
@@ -398,10 +405,10 @@ export default function WizardPage() {
                                                         </span>
                                                     </td>
                                                     <td className="kpi-raw" style={{ fontSize: '15px', color: isUndef ? 'var(--text-muted)' : 'inherit' }}>
-                                                        {isUndef ? 'Unavailable' : fmt(kv.raw, meta?.unit, meta?.pct)}
+                                                        {isUndef ? 'Unavailable' : fmt(kv.raw, meta?.unit, meta?.pct, meta?.decimals)}
                                                     </td>
                                                     <td className="kpi-adjusted" style={{ fontSize: '16px', color: isUndef ? 'var(--text-muted)' : 'inherit' }}>
-                                                        {isUndef ? 'Unavailable' : fmt(kv.adjusted, meta?.unit, meta?.pct)}
+                                                        {isUndef ? 'Unavailable' : fmt(kv.adjusted, meta?.unit, meta?.pct, meta?.decimals)}
                                                     </td>
                                                     <td className="kpi-sample">
                                                         {isUndef ? '—' : `${kv.sampleSize} rows`}
@@ -466,7 +473,7 @@ export default function WizardPage() {
                                                 <td style={{ fontSize: '12px' }}>{fmt(ex.spend, '€', false)}</td>
                                                 <td style={{ fontSize: '12px' }}>{ex.impressions}</td>
                                                 <td style={{ fontSize: '12px' }}>{ex.clicks}</td>
-                                                <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{fmt(ex.computedValue, KPI_META[selectedKpiForExclusions]?.unit, KPI_META[selectedKpiForExclusions]?.pct)}</td>
+                                                <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{fmt(ex.computedValue, KPI_META[selectedKpiForExclusions]?.unit, KPI_META[selectedKpiForExclusions]?.pct, KPI_META[selectedKpiForExclusions]?.decimals)}</td>
                                                 <td>
                                                     <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                                                         {ex.reasons.map(r => {

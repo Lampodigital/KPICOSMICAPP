@@ -35,6 +35,7 @@ export interface KpiOutput {
     ER?: KpiValue;
     VTR6?: KpiValue;
     CPSF?: KpiValue;
+    CVR?: KpiValue;
 }
 
 export interface AnalyzeOptions {
@@ -63,9 +64,10 @@ function computeKpi(
     isCostKpi: boolean,
     thresholds: QualityThresholds,
     badgeThresholds: BadgeThresholds,
-    minDenominator: number = 0
+    minDenominator: number = 0,
+    requiresImpressions: boolean = true
 ): KpiValue {
-    const { included, excluded, summary } = excludeOutliers(rows, getMetric, getDenominator, thresholds, minDenominator);
+    const { included, excluded, summary } = excludeOutliers(rows, getMetric, getDenominator, thresholds, minDenominator, isCostKpi, requiresImpressions);
     const values = included.map(getMetric).filter((v): v is number => v !== null && isFinite(v));
 
     // A KPI is computable if we have at least one valid metric value after filtering.
@@ -141,49 +143,55 @@ export function computeKPIs(rows: CanonicalRow[], options: AnalyzeOptions): KpiO
             rows,
             (r) => r.impressions > 0 ? (r.spend / r.impressions) * 1000 : null,
             (r) => r.impressions,
-            marginPct, true, thresholds, badgeThresholds, kpiThresh.CPM.minImpressions
+            marginPct, true, thresholds, badgeThresholds, kpiThresh.CPM.minImpressions, true
         ),
         CPC: computeKpi(
             rows,
             (r) => r.clicks > 0 ? r.spend / r.clicks : null,
             (r) => r.clicks,
-            marginPct, true, thresholds, badgeThresholds, kpiThresh.CPC.minClicks
+            marginPct, true, thresholds, badgeThresholds, kpiThresh.CPC.minClicks, false // Does not strictly require impressions
         ),
         CPV: computeKpi(
             rows,
             (r) => r.videoViews > 0 ? r.spend / r.videoViews : null,
             (r) => r.videoViews,
-            marginPct, true, thresholds, badgeThresholds, 0 // No specific default given for CPV, fallback to 0
+            marginPct, true, thresholds, badgeThresholds, 0, true
         ),
         CPV6: computeKpi(
             rows,
             (r) => r.videoViews6s > 0 ? r.spend / r.videoViews6s : null,
             (r) => r.videoViews6s,
-            marginPct, true, thresholds, badgeThresholds, kpiThresh.CPV6.minVideoViews6s
+            marginPct, true, thresholds, badgeThresholds, kpiThresh.CPV6.minVideoViews6s, true
         ),
         CTR: computeKpi(
             rows,
             (r) => r.impressions > 0 ? r.clicks / r.impressions : null,
             (r) => r.impressions,
-            0, false, thresholds, badgeThresholds, kpiThresh.CTR.minImpressions
+            0, false, thresholds, badgeThresholds, kpiThresh.CTR.minImpressions, true
         ),
         ER: computeKpi(
             rows,
             (r) => r.impressions > 0 ? (r.paidLikes + r.paidComments + r.paidShares) / r.impressions : null,
             (r) => r.impressions,
-            0, false, thresholds, badgeThresholds, 0 // No default for ER
+            0, false, thresholds, badgeThresholds, 0, true
         ),
         VTR6: computeKpi(
             rows,
             (r) => r.impressions > 0 && r.videoViews6s > 0 ? r.videoViews6s / r.impressions : null,
             (r) => r.impressions,
-            0, false, thresholds, badgeThresholds, 0 // No default for VTR6
+            0, false, thresholds, badgeThresholds, 0, true
         ),
         CPSF: computeKpi(
             rows,
             (r) => r.formSubmissions > 0 ? r.spend / r.formSubmissions : null,
             (r) => r.formSubmissions,
-            marginPct, true, thresholds, badgeThresholds, 0
+            marginPct, true, thresholds, badgeThresholds, 0, false // Actions (followers/forms) do not require impressions
+        ),
+        CVR: computeKpi(
+            rows,
+            (r) => r.clicks > 0 ? r.formSubmissions / r.clicks : null,
+            (r) => r.clicks,
+            0, false, thresholds, badgeThresholds, kpiThresh.CVR?.minClicks ?? 0, false // Requires clicks, not impressions
         ),
     };
 }

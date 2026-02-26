@@ -5,7 +5,8 @@ import { ColumnMappingMap } from '@/lib/mapping';
 export interface ParseResult {
     rows: CanonicalRow[];
     rawHeaders: string[];
-    rowCount: number;
+    validRowCount: number;
+    totalRowCount: number;
     errors: string[];
 }
 
@@ -22,7 +23,7 @@ export function parseExcelBuffer(buffer: Buffer, mapping: ColumnMappingMap): Par
     });
 
     if (rawData.length === 0) {
-        return { rows: [], rawHeaders: [], rowCount: 0, errors: ['Sheet is empty'] };
+        return { rows: [], rawHeaders: [], validRowCount: 0, totalRowCount: 0, errors: ['Sheet is empty'] };
     }
 
     const rawHeaders = Object.keys(rawData[0] as object);
@@ -37,5 +38,5 @@ export function parseExcelBuffer(buffer: Buffer, mapping: ColumnMappingMap): Par
         }
     }
 
-    return { rows, rawHeaders, rowCount: rows.length, errors };
+    return { rows, rawHeaders, validRowCount: rows.length, totalRowCount: rawData.length, errors };
 }

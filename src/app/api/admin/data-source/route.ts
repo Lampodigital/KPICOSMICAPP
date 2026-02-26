@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // Quick validation — try parsing with default mapping
-    const { rows, rawHeaders, errors } = parseExcelBuffer(buffer, {});
+    const { rawHeaders, totalRowCount, errors } = parseExcelBuffer(buffer, {});
     if (rawHeaders.length === 0) {
         return NextResponse.json({ error: 'File appears empty or unreadable', parseErrors: errors }, { status: 422 });
     }
@@ -56,7 +56,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
         ok: true,
         fileName: file.name,
-        rowCount: rows.length,
+        rowCount: totalRowCount,
+        validRowCount: 0, // Since mapping was {}
         headers: rawHeaders,
         mapping: detectedMapping,
     });
