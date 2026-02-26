@@ -1,8 +1,6 @@
-# Cosmic KPI Master App
+# KPI Master App
 
-![Cosmic Tech](public/brand/cosmic-logo-black.png)
-
-A sophisticated internal analytics dashboard and data normalization tool for managing, analyzing, and exporting highly refined structural KPIs for Cosmic Tech.
+A sophisticated internal analytics dashboard and data normalization tool for managing, analyzing, and exporting highly refined structural KPIs.
 
 ## Features
 
