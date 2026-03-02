@@ -12,6 +12,7 @@ export interface QualityThresholds {
         CPA?: { minConversions: number };
         CTR: { minImpressions: number };
         CVR: { minClicks: number };
+        CPF?: { minFollowers: number };
     };
     iqrMultiplier: number;       // Fence = Q1 - k*IQR, Q3 + k*IQR. Higher = more permissive
     maxExcludedSpendPct: number; // Warning threshold: if more spend is excluded, show alert
@@ -45,6 +46,7 @@ export const PRESETS: Record<OutlierPreset, QualityThresholds> = {
             CPA: { minConversions: 3 },
             CTR: { minImpressions: 1000 },
             CVR: { minClicks: 20 },
+            CPF: { minFollowers: 5 },
         },
         iqrMultiplier: 3.0,         // Very wide — only catches extreme extremes
         maxExcludedSpendPct: 20,
@@ -61,6 +63,7 @@ export const PRESETS: Record<OutlierPreset, QualityThresholds> = {
             CPA: { minConversions: 5 },
             CTR: { minImpressions: 3000 },
             CVR: { minClicks: 30 },
+            CPF: { minFollowers: 10 },
         },
         iqrMultiplier: 2.0,         // Standard — removes clear outliers
         maxExcludedSpendPct: 30,
@@ -77,6 +80,7 @@ export const PRESETS: Record<OutlierPreset, QualityThresholds> = {
             CPA: { minConversions: 10 },
             CTR: { minImpressions: 10000 },
             CVR: { minClicks: 100 },
+            CPF: { minFollowers: 30 },
         },
         iqrMultiplier: 1.5,         // Tighter fence, but still ~1.5x standard IQR range
         maxExcludedSpendPct: 40,

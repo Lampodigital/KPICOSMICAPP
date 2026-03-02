@@ -31,11 +31,13 @@ export interface KpiOutput {
     CPC?: KpiValue;
     CPV?: KpiValue;
     CPV6?: KpiValue;
+    CPF?: KpiValue;
     CTR?: KpiValue;
     ER?: KpiValue;
     VTR6?: KpiValue;
-    CPSF?: KpiValue;
+    CPL?: KpiValue;
     CVR?: KpiValue;
+    CPA?: KpiValue;
 }
 
 export interface AnalyzeOptions {
@@ -163,6 +165,12 @@ export function computeKPIs(rows: CanonicalRow[], options: AnalyzeOptions): KpiO
             (r) => r.videoViews6s,
             marginPct, true, thresholds, badgeThresholds, kpiThresh.CPV6.minVideoViews6s, true
         ),
+        CPF: computeKpi(
+            rows,
+            (r) => r.paidFollowers > 0 ? r.spend / r.paidFollowers : null,
+            (r) => r.paidFollowers,
+            marginPct, true, thresholds, badgeThresholds, kpiThresh.CPF?.minFollowers ?? 0, false // Actions (followers) do not require impressions
+        ),
         CTR: computeKpi(
             rows,
             (r) => r.impressions > 0 ? r.clicks / r.impressions : null,
@@ -181,7 +189,7 @@ export function computeKPIs(rows: CanonicalRow[], options: AnalyzeOptions): KpiO
             (r) => r.impressions,
             0, false, thresholds, badgeThresholds, 0, true
         ),
-        CPSF: computeKpi(
+        CPL: computeKpi(
             rows,
             (r) => r.formSubmissions > 0 ? r.spend / r.formSubmissions : null,
             (r) => r.formSubmissions,
@@ -192,6 +200,12 @@ export function computeKPIs(rows: CanonicalRow[], options: AnalyzeOptions): KpiO
             (r) => r.clicks > 0 ? r.formSubmissions / r.clicks : null,
             (r) => r.clicks,
             0, false, thresholds, badgeThresholds, kpiThresh.CVR?.minClicks ?? 0, false // Requires clicks, not impressions
+        ),
+        CPA: computeKpi(
+            rows,
+            (r) => r.addsToCart > 0 ? r.spend / r.addsToCart : null,
+            (r) => r.addsToCart,
+            marginPct, true, thresholds, badgeThresholds, kpiThresh.CPA?.minConversions ?? 0, false // Actions do not require impressions
         ),
     };
 }

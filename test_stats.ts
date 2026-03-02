@@ -18,7 +18,7 @@ function makeRow(spend: number, impressions: number, clicks: number, name: strin
         paidShares: 0,
         formSubmissions: 0,
         reach: 0
-    } as CanonicalRow;
+    } as unknown as CanonicalRow;
 }
 
 console.log('--- TEST 1: MAD Fallback for identical values ---');

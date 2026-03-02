@@ -2,24 +2,36 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/rbac/guards';
 import { prisma } from '@/lib/db';
 import { parseExcelBuffer } from '@/lib/data/parser';
-import { applyFilters, FilterOptions } from '@/lib/filters/apply';
+import { applyFilters } from '@/lib/filters/apply';
 import { computeKPIs } from '@/lib/kpis/registry';
 import { DEFAULT_MAPPING } from '@/lib/mapping';
 import { OutlierPreset, QualityThresholds } from '@/lib/outliers/config';
 import { readFile } from 'fs/promises';
 import path from 'path';
+import { z } from 'zod';
+
+const analyzeSchema = z.object({
+    filters: z.record(z.string(), z.unknown()).optional().default({}),
+    marginPct: z.number().min(0).max(100).optional().default(0),
+    outlierPreset: z.enum(['Strict', 'Balanced', 'Conservative']).optional(),
+    minImpressions: z.number().nonnegative().optional(),
+    minSpend: z.number().nonnegative().optional(),
+});
 
 export async function POST(req: NextRequest) {
     const { error, session } = await requireAuth();
     if (error) return error;
 
-    const body = await req.json() as {
-        filters: FilterOptions;
-        marginPct: number;
-        outlierPreset?: OutlierPreset;
-        minImpressions?: number;
-        minSpend?: number;
-    };
+    let body;
+    try {
+        const rawBody = await req.json();
+        body = analyzeSchema.parse(rawBody);
+    } catch (err) {
+        if (err instanceof z.ZodError) {
+            return NextResponse.json({ error: 'Invalid input data', details: err.issues }, { status: 400 });
+        }
+        return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
+    }
 
     // Load active data file from db config
     const config = await prisma.appConfig.findUnique({ where: { id: 1 } });

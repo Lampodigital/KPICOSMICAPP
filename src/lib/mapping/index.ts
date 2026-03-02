@@ -22,6 +22,7 @@ export const DEFAULT_MAPPING: ColumnMappingMap = {
     paidComments: 'Paid Comments',
     paidShares: 'Paid Shares',
     formSubmissions: 'Total Submit Form',
+    addsToCart: 'Total Add to Cart',
 };
 
 const KEYWORD_MAP: Record<string, string[]> = {
@@ -33,6 +34,7 @@ const KEYWORD_MAP: Record<string, string[]> = {
     market: ['nazione', 'market', 'country', 'nation'],
     objective: ['objective', 'obiettivo'],
     sector: ['sector', 'settore'],
+    addsToCart: ['add to cart', 'cart'],
 };
 
 /**

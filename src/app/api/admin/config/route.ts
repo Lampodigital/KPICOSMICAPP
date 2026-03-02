@@ -1,14 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { requireAdmin } from '@/lib/rbac/guards';
 import { prisma } from '@/lib/db';
+
+const configSchema = z.object({
+    defaultOutlierPreset: z.enum(['Strict', 'Balanced', 'Conservative']).optional(),
+    defaultMinImpressions: z.number().nonnegative().optional(),
+    defaultMinSpend: z.number().nonnegative().optional(),
+    qualityPresetsOverrides: z.unknown().optional(),
+    badgeThresholdsOverrides: z.unknown().optional(),
+});
 
 export async function PATCH(req: NextRequest) {
     const { error } = await requireAdmin();
     if (error) return error;
 
+    let body;
     try {
-        const body = await req.json();
+        const rawBody = await req.json();
+        body = configSchema.parse(rawBody);
+    } catch (err) {
+        if (err instanceof z.ZodError) {
+            return NextResponse.json({ error: 'Invalid config payload', details: err.issues }, { status: 400 });
+        }
+        return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
+    }
 
+    try {
         const updateData: any = {};
         if (body.defaultOutlierPreset !== undefined) updateData.defaultOutlierPreset = body.defaultOutlierPreset;
         if (body.defaultMinImpressions !== undefined) updateData.defaultMinImpressions = body.defaultMinImpressions;

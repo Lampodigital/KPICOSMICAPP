@@ -35,6 +35,7 @@ function mkRaw(overrides: Record<string, unknown> = {}): Record<string, unknown>
         'Paid Comments': '0',
         'Paid Shares': '0',
         'Total Submit Form': '0',
+        'Total Add to Cart': '0',
         ...overrides,
     };
 }
@@ -232,6 +233,7 @@ describe('normalizeRow – all metric fields parsed', () => {
             'Paid Comments': '5',
             'Paid Shares': '3',
             'Total Submit Form': '8',
+            'Total Add to Cart': '12',
         });
         const row = normalizeRow(raw, DEFAULT_MAPPING)!;
         expect(row.spend).toBe(500);
@@ -246,6 +248,7 @@ describe('normalizeRow – all metric fields parsed', () => {
         expect(row.paidComments).toBe(5);
         expect(row.paidShares).toBe(3);
         expect(row.formSubmissions).toBe(8);
+        expect(row.addsToCart).toBe(12);
     });
 });
 

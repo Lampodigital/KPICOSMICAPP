@@ -22,6 +22,7 @@ export interface CanonicalRow {
     paidComments: number;
     paidShares: number;
     formSubmissions: number;
+    addsToCart: number;
 }
 
 function parseNum(value: unknown): number {
@@ -112,5 +113,6 @@ export function normalizeRow(
         paidComments: parseNum(get('paidComments')),
         paidShares: parseNum(get('paidShares')),
         formSubmissions: parseNum(get('formSubmissions')),
+        addsToCart: parseNum(get('addsToCart')),
     };
 }

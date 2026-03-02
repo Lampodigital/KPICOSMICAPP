@@ -3,7 +3,7 @@ import { useState, useCallback } from 'react';
 
 import { KpiOutput, KpiValue } from '@/lib/kpis/registry';
 
-const OBJECTIVES = ['Reach', 'Traffic', 'Video Views', 'Community Interaction', 'Lead Generation', 'App Promotion', 'Sales', 'Branded Mission'];
+const OBJECTIVES = ['Reach', 'Traffic', 'Video Views', 'Community Interaction', 'Lead Generation', 'App Promotion', 'Sales'];
 const SECTORS = ['Fashion', 'Beauty', 'Luxury', 'FMCG', 'Retail', 'App & Services', 'Education', 'Entertainment', 'Tech & Finance', 'Automotive', 'Travel'];
 const MARKETS = ['IT', 'ES', 'FR', 'DE', 'UK', 'US', 'NL', 'BE', 'PL', 'PT', 'CH', 'AT', 'SE', 'DK', 'AE', 'SA', 'BR', 'MX'];
 const PRESETS = ['Conservative', 'Balanced', 'Strict'] as const;
@@ -15,11 +15,23 @@ const KPI_META: Record<string, { label: string; unit: string; pct?: boolean; dec
     CPC: { label: 'CPC', unit: '€', decimals: 2 },
     CPV: { label: 'CPV', unit: '€', decimals: 4 },
     CPV6: { label: 'CPV6', unit: '€', decimals: 4 },
+    CPF: { label: 'CPF', unit: '€', decimals: 2 },
     CTR: { label: 'CTR', unit: '%', pct: true },
     ER: { label: 'ER', unit: '%', pct: true },
     VTR6: { label: 'VTR6', unit: '%', pct: true },
-    CPSF: { label: 'CPSF', unit: '€', decimals: 2 },
+    CPL: { label: 'CPL', unit: '€', decimals: 2 },
     CVR: { label: 'CVR', unit: '%', pct: true },
+    CPA: { label: 'CPA', unit: '€', decimals: 2 },
+};
+
+const OBJECTIVE_MAIN_KPI: Record<string, string> = {
+    'Reach': 'CPM',
+    'Traffic': 'CPC',
+    'Video Views': 'CPV6',
+    'Community Interaction': 'CPF',
+    'Lead Generation': 'CPL',
+    'Sales': 'CPA',
+    'App Promotion': 'CPL'
 };
 
 const REASON_DESCRIPTIONS: Record<string, { label: string; description: string }> = {
@@ -157,8 +169,18 @@ export default function WizardPage() {
 
     const copyToClipboard = useCallback(async () => {
         if (!result) return;
+        const mainKpis = objectives.map(obj => OBJECTIVE_MAIN_KPI[obj]).filter(Boolean);
+        const entries = Object.entries(result.kpis).sort(([keyA], [keyB]) => {
+            const idxA = mainKpis.indexOf(keyA);
+            const idxB = mainKpis.indexOf(keyB);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return 0;
+        });
+
         const lines = ['KPI\tRaw\tAdjusted\tMin. Result Cosmic'];
-        for (const [key, val] of Object.entries(result.kpis)) {
+        for (const [key, val] of entries) {
             const meta = KPI_META[key as string];
             const kv = val as KpiValue;
             if (!kv || kv.raw === null) continue;
@@ -188,8 +210,18 @@ export default function WizardPage() {
 
     const downloadCSV = useCallback(() => {
         if (!result) return;
+        const mainKpis = objectives.map(obj => OBJECTIVE_MAIN_KPI[obj]).filter(Boolean);
+        const entries = Object.entries(result.kpis).sort(([keyA], [keyB]) => {
+            const idxA = mainKpis.indexOf(keyA);
+            const idxB = mainKpis.indexOf(keyB);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return 0;
+        });
+
         const lines = ['KPI,Raw,Adjusted,Min. Result Cosmic'];
-        for (const [key, val] of Object.entries(result.kpis)) {
+        for (const [key, val] of entries) {
             const meta = KPI_META[key as string];
             const kv = val as KpiValue;
             if (!kv || kv.raw === null) continue;
@@ -439,7 +471,15 @@ export default function WizardPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {Object.entries(result.kpis).map(([key, val]) => {
+                                    {Object.entries(result.kpis).sort(([keyA], [keyB]) => {
+                                        const mainKpis = objectives.map(obj => OBJECTIVE_MAIN_KPI[obj]).filter(Boolean);
+                                        const idxA = mainKpis.indexOf(keyA);
+                                        const idxB = mainKpis.indexOf(keyB);
+                                        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                                        if (idxA !== -1) return -1;
+                                        if (idxB !== -1) return 1;
+                                        return 0;
+                                    }).map(([key, val]) => {
                                         const kv = val as KpiValue | undefined;
                                         if (!kv || (!kv.raw && kv.reliability === 'Unavailable')) return null;
                                         const meta = KPI_META[key];
@@ -479,7 +519,7 @@ export default function WizardPage() {
                                                         if (key === 'CPM') {
                                                             volume = (budget / kv.adjusted) * 1000;
                                                         } else {
-                                                            // CPC, CPV, CPV6, CPSF
+                                                            // CPC, CPV, CPV6, CPL, CPA, CPF
                                                             volume = budget / kv.adjusted;
                                                         }
 

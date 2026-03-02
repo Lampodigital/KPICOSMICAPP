@@ -5,10 +5,12 @@ const KPI_LABELS: Record<string, { label: string; unit: string; pct?: boolean }>
     CPC: { label: 'CPC', unit: '€' },
     CPV: { label: 'CPV', unit: '€' },
     CPV6: { label: 'CPV6', unit: '€' },
+    CPF: { label: 'CPF', unit: '€' },
     CTR: { label: 'CTR', unit: '%', pct: true },
     ER: { label: 'ER', unit: '%', pct: true },
     VTR6: { label: 'VTR6', unit: '%', pct: true },
-    CPSF: { label: 'CPSF', unit: '€' },
+    CPL: { label: 'CPL', unit: '€' },
+    CPA: { label: 'CPA', unit: '€' },
 };
 
 function fmt(v: number | null | undefined, pct = false): string {
